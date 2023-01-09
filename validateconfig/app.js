@@ -8,7 +8,6 @@ const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
     gutters: ["CodeMirror-lint-markers"],
     lint: { lintOnChange: false }
 });
-
 function validator(text, options) {
     document.getElementById('result').style.display = 'none';
     let found = []
