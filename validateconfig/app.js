@@ -1,3 +1,6 @@
+window.onbeforeunload = function() {
+    return 'You have made changes since you last saved, leaving the website will result in a permanent loss of the data.';
+};
 const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
     lineNumbers: true,
     tabSize: 2,
@@ -74,14 +77,10 @@ function checkLine(index, line, messageCallback)
     line = line.replace(/\s/g, '');
     console.log(`checkLine(${index}, ${line})`);
     
-    if (line == '' || !line)
-    {
-        return;
-    }
+    if (line == '' || !line) return;
     // Ignore comments
     //
-    if (line.startsWith(';') || line.startsWith('#'))
-        return;
+    if (line.match(/^\s*[;#]/)) return;
     
     // Check for a header
     //
@@ -146,9 +145,21 @@ function checkLine(index, line, messageCallback)
                 index, 0, line.length
             ));
         }
+        let specials = /[\?{}\|&~!\[\(\)\^"]/g;
+        // Check if our key is an array
+        //
+        if (key.endsWith('[]'))
+        {
+            messageCallback(warning(
+                "Arrays may not be supported by the parser you are using.",
+                index, 0, key.length
+            ));
+            // Remove the [] so we don't get an error
+            specials = /[\?{}\|&~!\(\)\^"]/g;
+        }
         // Check if our key contains special characters
         //
-        if (key.match(/[\?{}\|&~!\[\(\)\^"]/g))
+        if (key.match(specials))
         {
             messageCallback(error(
                 "Syntax",
