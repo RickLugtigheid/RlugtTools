@@ -19,12 +19,17 @@
             </a>
         </div>
     </nav>
-    <div class="container mt-5">
+    <div class="container mt-5" itemscope itemtype="https://schema.org/ItemList https://schema.org/CreativeWork">
         <div class="m-4">
-            <dl class="row">
-                <dt class="col-sm-3"><a href="/validateconfig/">cfg/ini Validator</a></dt>
-                <dd class="col-sm-9">A tool for validating ini and config files.</dd>
-
+            <link itemprop="itemListOrder" href="https://schema.org/ItemListOrderAscending" />
+            <meta itemprop="numberOfItems" content="1" />
+            
+            <dl itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+                
+                <div class="row" itemprop="item" itemscope itemtype="https://schema.org/WebPage">
+                    <dt class="col-sm-3" itemprop="name"><a href="/validateconfig/">cfg/ini Validator</a></dt>
+                    <dd class="col-sm-9" itemprop="description">A tool for validating ini and config files.</dd>
+                </div>
                 <!-- <dt class="col-sm-3 text-truncate"><a href="">ToolName</a></dt>
                 <dd class="col-sm-9">A description for the tool.</dd> -->
             </dl>
