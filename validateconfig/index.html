@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="keywords" content="cfg, config, ini, validator, ini file, config file, unix, lint">
+    <meta name="description" content="An online tool for validating ini and config files.">
+    <title>Tools | cfg/ini Validator</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css" integrity="sha512-uf06llspW44/LZpHzHT6qBOIVODjWtv4MxCricRxkzvopAlSWnTf6hpZTFxuuZcuNE9CBQhqE0Seu1CoRk84nQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/lint/lint.min.css" integrity="sha512-jP1+o6s94WQS9boYeDP3Azh8ihI5BxGgBZNjkABhx05MqH5WuDzfzSnoPxGxVzWi/gxxVHZHvWkdRM6SMy5B0Q==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js" integrity="sha512-8RnEqURPUc5aqFEN04aQEiPlSAdE0jlFS/9iGgUyNtwFnSKCXhmB6ZTNl7LnDtDWKabJIASzXrzD0K+LYexU9g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/lint/lint.min.js" integrity="sha512-fzIkwQa9H8rjoDzpZ9sMOYhgaYwh9nKALWbE1m+7wpiry9PN5OyNcZ9LySotjEysolveRyv2C9pVJ+DbEuKtmQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.48.4/mode/properties/properties.min.js"></script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
+    <style>
+        #code, .CodeMirror {
+            width: 100%;
+            height: 380px;
+            height: calc(100vh - 440px);
+            min-height: 380px;
+            border: 1px solid #e1e1e1;
+            margin-bottom: 1em;
+            font-size: 14px;
+        }
+        .result-success {
+            border-left: 3px solid #5cb377;
+            background: #e7f4eb;
+        }
+        h2 {
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Image and text -->
+    <nav class="navbar navbar-light bg-white p-0">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <img src="../assets/images/logo.svg" width="30" height="30" class="d-inline-block align-top" alt="">
+                cfg/ini validator
+            </a>
+        </div>
+    </nav>
+    <h1 style="display:none">cfg/ini validator</h1>
+    <div class="container mt-5">
+        <textarea id="editor" cols="120" rows="30" name="foo" style="display: none;">
+[example]
+value=Hello World</textarea>
+        
+        <div class="col mb-3">
+            <button class="btn btn-light" onclick="editor.performLint()">Validate Config</button>
+            <button class="btn btn-light" onclick="editor.setValue('')">Clear</button>
+        </div>
+
+        <div class="col mb-3 container" id="result" style="display: none;">
+            <h4>Result</h4>
+            
+            <div class="col result-success mt-3">
+                <p class="text-success m-2 p-2">Valid Config</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>
