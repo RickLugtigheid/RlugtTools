@@ -1,0 +1,3 @@
+Sitemap: https://tools.rlugt.com/sitemap.xml
+User-agent: *
+Allow: /
