@@ -33,6 +33,7 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.48.4/mode/properties/properties.min.js"></script>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         #code, .CodeMirror {
             width: 100%;
@@ -47,8 +48,15 @@
             border-left: 3px solid #5cb377;
             background: #e7f4eb;
         }
-        h2 {
-            font-size: 15px;
+        h2 {font-size: 15px;}
+        code {
+            display: block;
+            overflow-x: auto;
+            padding: 0.5em;
+            color: #abb2bf;
+            background: #282c34;
+            border-radius: 0.25rem;
+            font-size: inherit;
         }
     </style>
 </head>
@@ -66,7 +74,7 @@
     <div class="container mt-5">
         <textarea id="editor" cols="120" rows="30" name="foo" style="display: none;">
 [example]
-value=Hello World</textarea>
+key=value</textarea>
         
         <div class="col mb-3">
             <button class="btn btn-light" onclick="editor.performLint()">Validate Config</button>
@@ -80,7 +88,63 @@ value=Hello World</textarea>
                 <p class="text-success m-2 p-2">Valid Config</p>
             </div>
         </div>
+
+        <hr>
+        <div class="row mt-4">
+            <h2 class="h5">What is a cfg/ini file?</h2>
+            <p>A file with the .ini, .cfg or .config extension is a configuration file used by various programs.</p>
+            <p>These files are also supported by most operating systems such as Unix and Unix-like operating systems, MS-DOS, macOS, Microsoft Windows, and IBM OS/2.</p>
+        </div>
+
+        <div class="row mt-5">
+            <h2 class="h5">Syntax</h2>
+            <p>Like most other file types cfg/ini files follow a specific syntax.<br>This syntax is documented bellow:</p>
+
+            <h3 class="h6 mt-3">Keys & values</h3>
+            <p>A key-value pair is an item that contains a key name and a value. Every config file contains a group of these items.</p>
+            <code>key=value</code>
+
+            <h3 class="h6 mt-3">Sections</h3>
+            <p>A section is a named group of items. There can be multiple sections in one file.</p>
+            <code>
+                <div>[section_name]</div>
+                <div>key1=value</div>
+                <div>key2=value</div>
+            </code>
+
+            <h3 class="h6 mt-3">Comments</h3>
+            <p>A comment is a piece of text that is ignored by the compiler. A comment is defined by the <var>;</var> or <var>#</var> symbol at beginning of a line.</p>
+            <code>
+                <div>; Comments here</div>
+                <div># Comments</div>
+            </code>
+        </div>
+
+        <div class="row mt-5">
+            <h2 class="h5">Tips & tricks</h2>
+            <ul>
+                <li>Drag & drop a file into the textarea above to add its contents to the textarea.</li>
+            </ul>
+        </div>
+
+        <div style="margin-bottom: 5rem;"></div>
     </div>
+
+    <!-- Footer -->
+    <footer class="container-fluid bg-light justify-content-between align-items-center mt-auto py-3 fixed-bottom">
+        <div class="row">
+            <div class="col col-md-4 col-lg-6 d-flex align-items-center">
+                <!-- <a href="/" class="mb-3 me-2 mb-md-0 text-muted text-decoration-none lh-1">
+                <img src="/assets/images/logo.svg" class="bi" width="30" height="24"></img>
+                </a> -->
+                <span class="mb-3 mb-md-0 text-muted">© 2023 Rick Lugtigheid</span>
+            </div>
+        
+            <ul class="col nav col-md-4 col-lg-5 justify-content-end list-unstyled d-flex">
+                <li class="ms-3"><a class="text-muted" href="https://github.com/RickLugtigheid" target="_blank"><i class="bi fab fa-github" width="24" height="24"></i></a></li>
+            </ul>
+        </div>
+    </footer>
 
     <script src="./app.js"></script>
 </body>
