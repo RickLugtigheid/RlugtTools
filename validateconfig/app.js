@@ -8,8 +8,26 @@ const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
     gutters: ["CodeMirror-lint-markers"],
     lint: { lintOnChange: false }
 });
-function validator(text, options) {
-    document.getElementById('result').style.display = 'none';
+
+function addErrorToList(message)
+{
+    errorLine = document.createElement('p');
+    errorLine.className = 'm-2 p-2 ';
+    errorLine.className += message.severity == 'warning' ? 'text-warning result-warning' : 'text-danger result-error'
+    errorLine.innerText = message.message
+
+    document.getElementById('error-list').appendChild(errorLine);
+}
+
+function validator(text, options) {   
+    let resultView = document.getElementById('result')
+    let successResultView = resultView.getElementsByClassName('result-success')[0];
+    let errorResultView = document.getElementById('error-list');
+    resultView.style.display = 'none';
+    successResultView.style.display = 'none';
+    errorResultView.style.display = 'none';
+    errorResultView.innerHTML = '';
+
     let found = []
 
     // Check all lines
@@ -21,12 +39,18 @@ function validator(text, options) {
         //
         checkLine(i, lines[i], message => {
             found.push(message);
+            addErrorToList(message);
         });
     }
     if (found.length == 0)
     {
-        document.getElementById('result').style.display = 'unset';
+        successResultView.style.display = '';
     }
+    else
+    {
+        errorResultView.style.display = '';
+    }
+    document.getElementById('result').style.display = 'unset';
     return found;
 }
 /**
@@ -64,6 +88,7 @@ function warning(message, line, colStart, colEnd)
         to: CodeMirror.Pos(line, colEnd)
     }
 }
+const REGEXP_COMMENTS = /^\s*[;#]/;
 /**
  * 
  * @param {*} index 
@@ -79,7 +104,7 @@ function checkLine(index, line, messageCallback)
     if (line == '' || !line) return;
     // Ignore comments
     //
-    if (line.match(/^\s*[;#]/)) return;
+    if (line.match(REGEXP_COMMENTS)) return;
     
     // Check for a header
     //
@@ -97,6 +122,20 @@ function checkLine(index, line, messageCallback)
                 index, 0, line.length
             ));
         }
+        // Check if our section has something after the end ']' that is not a comment
+        //
+        else
+        {
+            var endText = line.substr(end+1, line.length);
+            if (endText != '' && !endText.match(REGEXP_COMMENTS))
+            {
+                messageCallback(error(
+                    "Syntax",
+                    "No content after end character ']' expected",
+                    index, ++end, ++end + endText.length
+                ));
+            }
+        }
         
         // Check if the header has a name
         //
@@ -108,6 +147,8 @@ function checkLine(index, line, messageCallback)
                 index, 0, end
             ));
         }
+
+        
     }
     // Else if we do not find a '=' character a invalid keyValue pair is found
     //

@@ -48,6 +48,14 @@
             border-left: 3px solid #5cb377;
             background: #e7f4eb;
         }
+        .result-warning {
+            border-left: 3px solid #b3955c;
+            background: #f4f1e7;
+        }
+        .result-error {
+            border-left: 3px solid #b35c5c;
+            background: #f4e7e7;
+        }
         h2 {font-size: 15px;}
         code {
             display: block;
@@ -86,6 +94,10 @@ key=value</textarea>
             
             <div class="col result-success mt-3">
                 <p class="text-success m-2 p-2">Valid Config</p>
+            </div>
+            
+            <div class="col mt-3" id="error-list">
+                
             </div>
         </div>
 
