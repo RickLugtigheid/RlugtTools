@@ -1,6 +1,53 @@
 window.onbeforeunload = function() {
     return 'You have made changes since you last saved, leaving the website will result in a permanent loss of the data.';
 };
+const MODEL_SAVE = new bootstrap.Modal(document.getElementById('model-save-link'));
+document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        console.log('CTRL + S');
+
+        let saveUrl =  new URL(window.location.href);
+        saveUrl.hash = encodeURIComponent(editor.getValue());
+        document.getElementById('model-save-link-full').value = saveUrl.toString();
+        MODEL_SAVE.show();
+    }
+});
+
+// Enable tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+});
+
+// Custom data actions
+document.querySelectorAll('[data-action="copy-to-clip"]').forEach(element => {
+
+    // Data target is required
+    //
+    if (!element.hasAttribute('data-target'))
+    {
+        return;
+    }
+
+    element.addEventListener('click', e => {
+        let textToCopy = document.querySelector(element.getAttribute('data-target')).value;
+        
+        // Copy the text inside the text field
+        navigator.clipboard.writeText(textToCopy);
+
+        console.log(element.hasAttribute('data-bs-original-title'))
+        if (element.hasAttribute('data-bs-original-title'))
+        {
+            let originalTitle = element.getAttribute('data-bs-original-title');
+
+            element.setAttribute('data-bs-original-title', element.getAttribute('data-success-title'));
+            bootstrap.Tooltip.getInstance(element).show(element.getAttribute('data-success-title'));
+            element.setAttribute('data-bs-original-title', originalTitle);
+        }
+    });
+});
+
 const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
     lineNumbers: true,
     tabSize: 2,
