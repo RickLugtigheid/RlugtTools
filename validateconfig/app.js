@@ -1,11 +1,62 @@
+var madeChanges = false;
 window.onbeforeunload = function() {
-    return 'You have made changes since you last saved, leaving the website will result in a permanent loss of the data.';
+    if (madeChanges)
+    {
+        return 'You have made changes since you last saved, leaving the website will result in a permanent loss of the data.';
+    }
 };
+HTMLFormElement.prototype.getData = function()
+{
+    let data = {};
+    this.querySelectorAll('input, select').forEach(input => {
+        if (input.type == 'checkbox')
+        {
+            data[input.name] = input.checked;
+            return;
+        }
+        data[input.name] = input.value;
+    });
+    return data;
+}
+HTMLFormElement.prototype.setData = function(data)
+{
+    this.querySelectorAll('input, select').forEach(input => {
+        if (data[input.name] != null)
+        {
+            if (input.type == 'checkbox')
+            {
+                input.checked = data[input.name];
+                return;
+            }
+            input.value = data[input.name];
+        }
+    });
+}
+
+/** Handle settings model */
+document.getElementById('model-settings').addEventListener('show.bs.modal', e => {
+    let settings = validator.getSettings();
+    settings.commentRegex = settings.commentRegex.source.match(/\[(.*)\]/)[1];
+    document.getElementById('form-settings').setData(settings);
+});
+/**
+ * 
+ * @param {HTMLFormElement} form 
+ */
+function onSubmitSettings(form)
+{
+    let data = form.getData();
+    data.commentRegex = new RegExp('^\\s*[' + data.commentRegex + '].*');
+    validator.setSettings(data);
+    validator.saveSettings();
+    return false; // Prevent default
+}
+
+/** Handle link save model */
 const MODEL_SAVE = new bootstrap.Modal(document.getElementById('model-save-link'));
 document.addEventListener('keydown', function (e) {
     if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
-        console.log('CTRL + S');
 
         let saveUrl =  new URL(window.location.href);
         saveUrl.hash = encodeURIComponent(editor.getValue());
@@ -36,7 +87,6 @@ document.querySelectorAll('[data-action="copy-to-clip"]').forEach(element => {
         // Copy the text inside the text field
         navigator.clipboard.writeText(textToCopy);
 
-        console.log(element.hasAttribute('data-bs-original-title'))
         if (element.hasAttribute('data-bs-original-title'))
         {
             let originalTitle = element.getAttribute('data-bs-original-title');
@@ -48,6 +98,7 @@ document.querySelectorAll('[data-action="copy-to-clip"]').forEach(element => {
     });
 });
 
+/** Setup */
 const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
     lineNumbers: true,
     tabSize: 2,
@@ -55,205 +106,377 @@ const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
     gutters: ["CodeMirror-lint-markers"],
     lint: { lintOnChange: false }
 });
+editor.on('change', () => {
+    madeChanges = true;
+});
+const URI = new URL(window.location.href);
 
-function addErrorToList(message)
+/**
+ * JsDoc Defines
+ * @typedef Message
+ * @property {string} message 
+ * @property {'warning'|'error'} severity
+ * @property {number} line 
+ * @property {number} colStart 
+ * @property {number} colEnd 
+ * 
+* @typedef ValidatorSettings
+* @property {boolean} settings.allowDuplicateKeys
+* @property {boolean} settings.allowDuplicateSections
+* @property {boolean} settings.allowKeysWithoutSection
+* @property {RegExp} settings.commentRegex
+ */
+
+function Validator()
 {
-    errorLine = document.createElement('p');
-    errorLine.className = 'm-2 p-2 ';
-    errorLine.className += message.severity == 'warning' ? 'text-warning result-warning' : 'text-danger result-error'
-    errorLine.innerText = message.message
-
-    document.getElementById('error-list').appendChild(errorLine);
-}
-
-function validator(text, options) {   
-    let resultView = document.getElementById('result')
-    let successResultView = resultView.getElementsByClassName('result-success')[0];
-    let errorResultView = document.getElementById('error-list');
-    resultView.style.display = 'none';
-    successResultView.style.display = 'none';
-    errorResultView.style.display = 'none';
-    errorResultView.innerHTML = '';
-
-    let found = []
-
-    // Check all lines
-    //
-    let lines = text.split('\n');
-    for (let i = 0; i < lines.length; i++)
+    /**
+     * Validates the given text
+     * @param {string} text 
+     * @returns {Array} An array of messages
+     */
+    this.validate = function(text)
     {
-        // Check the line and push all messages
+        _elements.resetResultView();
+
+        // Reset our data
         //
-        checkLine(i, lines[i], message => {
-            found.push(message);
-            addErrorToList(message);
-        });
+        _messages = [];
+        _sections = {};
+        _sectionPointer = null;
+        
+        // Check all lines
+        //
+        let lines = text.replace(/[\t]/, '').split(/[\r\n]/);
+        for (let i = 0; i < lines.length; i++)
+        {
+            _validateLine(i, lines[i]);
+        }
+        _renderResult();
+        return _messages;
     }
-    if (found.length == 0)
+
+    /**
+     * @param {ValidatorSettings} settings 
+     */
+    this.setSettings = function(settings)
     {
-        successResultView.style.display = '';
+        _settings = settings;
+    }
+    /**
+     * @returns {ValidatorSettings}
+     */
+    this.getSettings = function()
+    {
+        return { ..._settings };
+    }
+    /**
+     * 
+     * @param {string} saveAs 
+     */
+    this.saveSettings = function(saveAs = 'default')
+    {
+        let itemId = 'ini.settings.default';
+
+        let settings = this.getSettings();
+        settings.commentRegex = settings.commentRegex.source.match(/\[(.*)\]/)[1];
+        localStorage.setItem(itemId, JSON.stringify(settings));
+    }
+
+    var _messages = [];
+    var _sections = {};
+    var _sectionPointer = null;
+
+    // Get our default settings
+    //
+    /**
+     * @type {ValidatorSettings}
+     */
+    var _settings = JSON.parse(localStorage.getItem('ini.settings.default'));
+    if (_settings == null)
+    {
+        _settings = {
+            allowDuplicateKeys: false,
+            allowDuplicateSections: false,
+            allowKeysWithoutSection: false,
+    
+            commentRegex: /^\s*[#;].*/
+        };
     }
     else
     {
-        errorResultView.style.display = '';
+        _settings.commentRegex = new RegExp('^\\s*[' + _settings.commentRegex + '].*');
+        //_settings.commentRegex = new RegExp(_settings.commentRegex.replace(/[\/\\]+/gm, ''));
     }
-    document.getElementById('result').style.display = 'unset';
-    return found;
-}
-/**
- * 
- * @param {'Syntax'|'Reference'|'Type'|'Unknown'} type 
- * @param {string} message 
- * @param {number} line 
- * @param {number} colStart 
- * @param {number} colEnd 
- * @returns 
- */
-function error(type, message, line, colStart, colEnd)
-{
-    return {
-        message: type + " error on line " + (line+1) + ':\n\n' + message,
-        severity: 'error',
-        from: CodeMirror.Pos(line, colStart),
-        to: CodeMirror.Pos(line, colEnd)
-    }
-}
-/**
- * 
- * @param {string} message 
- * @param {number} line 
- * @param {number} colStart 
- * @param {number} colEnd 
- * @returns 
- */
-function warning(message, line, colStart, colEnd)
-{
-    return {
-        message: "Warning on line " + (line+1) + ':\n\n' + message,
-        severity: 'warning',
-        from: CodeMirror.Pos(line, colStart),
-        to: CodeMirror.Pos(line, colEnd)
-    }
-}
-const REGEXP_COMMENTS = /^\s*[;#]/;
-/**
- * 
- * @param {*} index 
- * @param {*} line 
- * @param {(message) => void} messageCallback 
- * @returns 
- */
-function checkLine(index, line, messageCallback)
-{
-    line = line.replace(/\s/g, '');
-    console.log(`checkLine(${index}, ${line})`);
-    
-    if (line == '' || !line) return;
-    // Ignore comments
-    //
-    if (line.match(REGEXP_COMMENTS)) return;
-    
-    // Check for a header
-    //
-    if (line.startsWith('['))
-    {
-        let end = line.indexOf(']')
 
-        // Check if an ']' character was found
-        //
-        if (end == -1)
+    var _elements = {
+        resultView: document.getElementById('result'),
+        resultViewSuccess: document.getElementById('result').getElementsByClassName('result-success')[0],
+        resultViewMessages: document.getElementById('error-list'),
+
+        resetResultView()
         {
-            messageCallback(error(
-                "Syntax",
-                "No end character ']' found",
-                index, 0, line.length
-            ));
+            this.resultView.style.display                   = 'none';
+            this.resultViewSuccess.style.display            = 'none';
+            this.resultViewMessages.style.display           = 'none';
+            this.resultViewMessages.innerHTML               = '';
         }
-        // Check if our section has something after the end ']' that is not a comment
+    };
+
+    /**
+     * Checks a line for errors/warnings
+     * @returns {Array.<string>} 
+     */
+    var _validateLine = function(lineNumber, line)
+    {
+        console.debug(lineNumber, line);
+
+        // Ignore empty lines
         //
+        if (_isEmptyString(line))
+        {
+            return;
+        }
+
+        // Ignore comments
+        //
+        if (_isComment(line))
+        {
+            return;
+        }
+
+        // Check if we found a new section
+        //
+        if (_isSection(line))
+        {
+            _validateSection(lineNumber, line);
+        }
+        // Else we validate if the line is a correct keyValue pair
         else
         {
-            var endText = line.substr(end+1, line.length);
-            if (endText != '' && !endText.match(REGEXP_COMMENTS))
+            _validateProperty(lineNumber, line);
+        }
+    }
+    var _validateSection = function(lineNumber, line)
+    {
+        let hasError = false;
+        // Check if our section has no end
+        //
+        if (line.indexOf(']') == -1)
+        {
+            _messages.push(_createMessage(
+                'error',
+                'Section has no end character \']\'',
+                lineNumber,
+                0,
+                line.length
+            ));
+            hasError = true;
+        }
+
+        // Check if our section is empty
+        //
+        if (_isEmptySection(line))
+        {
+            _messages.push(_createMessage(
+                'error',
+                'Section name can not be empty',
+                lineNumber,
+                0,
+                line.length
+            ));
+            hasError = true;
+        }
+
+        // Add our section when no error occurred
+        //
+        if (!hasError)
+        {
+            // Get the section name
+            let name = line.substring(line.indexOf('[')+1, line.indexOf(']'));
+
+            if (_sections[name] != null && !_settings.allowDuplicateSections)
             {
-                messageCallback(error(
-                    "Syntax",
-                    "No content after end character ']' expected",
-                    index, ++end, ++end + endText.length
+                _messages.push(_createMessage(
+                    'error',
+                    'Section with name \'' + name + '\' already exists.\n   Duplicate Sections not allowed, enable in settings to ignore this error.',
+                    lineNumber,
+                    0,
+                    line.length
+                ));
+                return;
+            }
+            
+            _sections[name] = [];
+            _sectionPointer = name;
+
+            // Check if any none commented text was appended to the end of the section
+            //
+            let appendedText = line.substring(line.indexOf(']') + 1, line.length);
+            if (appendedText != '' && !_isEmptyString(appendedText) && !_isComment(appendedText))
+            {
+                _messages.push(_createMessage(
+                    'error',
+                    'No content expected after the section end \']\'',
+                    lineNumber,
+                    0,
+                    line.length
                 ));
             }
         }
-        
-        // Check if the header has a name
-        //
-        if (line.substr(0, end+1) === '[]')
-        {
-            messageCallback(error(
-                "Syntax",
-                "No section name given",
-                index, 0, end
-            ));
-        }
-
-        
     }
-    // Else if we do not find a '=' character a invalid keyValue pair is found
-    //
-    else if (line.indexOf('=') === -1)
+    var _validateProperty = function(lineNumber, line)
     {
-        messageCallback(error(
-            "Syntax",
-            "Invalid keyValue pair",
-            index, 0, line.length
-        ));
+        let setterIndex = line.indexOf('=');
+
+        // Check if our property has a setter character '='
+        //
+        if (setterIndex == -1)
+        {
+            _messages.push(_createMessage(
+                'error',
+                'KeyValue pair has no setter \'=\'',
+                lineNumber,
+                0,
+                line.length
+            ));
+        }
+        else
+        {
+            let escapedLine = line.replace(/\s/g, '');
+            let escapedSetterIndex = escapedLine.indexOf('=');
+            let key = escapedLine.substring(0, escapedSetterIndex);
+            // Validate our keyname
+            //
+            if (_keyHasSpecialCharacters(key))
+            {
+                _messages.push(_createMessage(
+                    'error',
+                    'Key name can not contain special characters ?{}|&~![()^".',
+                    lineNumber,
+                    setterIndex - key.length,
+                    setterIndex
+                ));
+            }
+
+            // Show an error when this key has no section when not allowed
+            //
+            if (Object.keys(_sections).length < 1 && !_settings.allowKeysWithoutSection)
+            {
+                _messages.push(_createMessage(
+                    'error',
+                    'Keys without section are not allowed.',
+                    lineNumber,
+                    0,
+                    line.length
+                ));
+                return;
+            }
+
+            // Show an error when key is a duplicate key when not allowed
+            //
+            if (_sections[_sectionPointer].includes(key) && !_settings.allowDuplicateKeys)
+            {
+                _messages.push(_createMessage(
+                    'error',
+                    'Property with key \'' + key + '\' already exists in section \'' + _sectionPointer + '\'.\n    Duplicate Keys not allowed, enable in settings to ignore this error.',
+                    lineNumber,
+                    0,
+                    line.length
+                ));
+                return;
+            }
+
+            _sections[_sectionPointer].push(key);
+        }
     }
-    else
+
+    var _isEmptyString = function(value)
     {
-        let assign  = line.indexOf('=');
-        let key     = line.substr(0, assign);
-        let value   = line.substr(assign+1, line.length);
+        return /^\s*$/.test(value);
+    }
+    var _isComment = function(value)
+    {
+        return _settings.commentRegex.test(value);
+    }
+    var _isSection = function(value)
+    {
+        return /^\s*\[.*/.test(value);
+    }
+    var _isEmptySection = function(value)
+    {
+        return /^\s*\[\]\s*/.test(value);
+    }
+    var _keyHasSpecialCharacters = function(value)
+    {
+        return /[\?{}\|&~!\[\(\)\^"]/g.test(value);
+    }
 
-        // Check if our value is empty
-        if (value == '')
+    /**
+     * Creates a new message object
+     * @param {'warning'|'error'} severity
+     * @param {string} message 
+     * @param {number} line 
+     * @param {number} colStart 
+     * @param {number} colEnd 
+     * @param {Message} message 
+     */
+    var _createMessage = function(severity, message, line, colStart, colEnd)
+    {
+        return {
+            message: severity + " on line " + (line+1) + ':\n\n' + message,
+            severity: severity,
+            from: CodeMirror.Pos(line, colStart),
+            to: CodeMirror.Pos(line, colEnd)
+        }
+    }
+
+    /**
+     * Renders the result view
+     */
+    var _renderResult = function()
+    {
+        _elements.resultView.style.display = 'unset';
+
+        if (_messages.length > 0)
         {
-            messageCallback(warning(
-                "Key '" + key + "' has an empty value",
-                index, 0, line.length
-            ));
+            _messages.forEach(message => {
+                _renderMessage(message);
+            });
+            _elements.resultViewMessages.style.display = '';
+            return;
         }
 
-        // Check if our key is empty
-        //
-        if (key == '')
-        {
-            messageCallback(error(
-                "Syntax",
-                "KeyValue pair can not have an empty key",
-                index, 0, line.length
-            ));
-        }
-        let specials = /[\?{}\|&~!\[\(\)\^"]/g;
-        // Check if our key is an array
-        //
-        if (key.endsWith('[]'))
-        {
-            messageCallback(warning(
-                "Arrays may not be supported by the parser you are using.",
-                index, 0, key.length
-            ));
-            // Remove the [] so we don't get an error
-            specials = /[\?{}\|&~!\(\)\^"]/g;
-        }
-        // Check if our key contains special characters
-        //
-        if (key.match(specials))
-        {
-            messageCallback(error(
-                "Syntax",
-                "Key name can not contain special characters ?{}|&~![()^\"",
-                index, 0, line.length
-            ));
-        }
+        _elements.resultViewSuccess.style.display = '';
+    }
+    /**
+     * Renders a message in the result message list
+     * @param {Message} message 
+     */
+    var _renderMessage = function(message)
+    {
+        errorLine = document.createElement('p');
+        errorLine.className = 'm-2 p-2 ';
+        errorLine.className += message.severity == 'warning' ? 'text-warning result-warning' : 'text-danger result-error'
+        errorLine.innerText = message.message
+    
+        document.getElementById('error-list').appendChild(errorLine);
+    }
+};
+const validator = new Validator();
+CodeMirror.registerHelper("lint", "properties", (text, options) => validator.validate(text));
+
+// Handle mode actions
+//
+if (URI.searchParams.has('mode'))
+{
+    switch (URI.searchParams.get('mode'))
+    {
+        case 'asterisk':
+            validator.setSettings({
+                allowDuplicateKeys: true,
+                allowDuplicateSections: true,
+                commentRegex: /^\s*[;].*/
+            });
+        break;
     }
 }
-CodeMirror.registerHelper("lint", "properties", validator);
