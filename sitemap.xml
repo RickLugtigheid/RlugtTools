@@ -6,7 +6,7 @@
     <priority>1.00</priority>
   </url>
   <url>
-    <loc>https://tools.rlugt.com/validateconfig/</loc>
+	    <loc>https://tools.rlugt.com/inivalidator/</loc>
     <lastmod>2023-01-09T11:13:12+00:00</lastmod>
     <priority>0.80</priority>
   </url>
