@@ -185,6 +185,10 @@ function Validator()
     var _messages = [];
     var _sections = {};
     var _sectionPointer = null;
+    /**
+     * Contains all keys not in a section.
+     */
+    var _global = [];
 
     // Get our default settings
     //
@@ -228,8 +232,6 @@ function Validator()
      */
     var _validateLine = function(lineNumber, line)
     {
-        console.debug(lineNumber, line);
-
         // Ignore empty lines
         //
         if (_isEmptyString(line))
@@ -358,35 +360,51 @@ function Validator()
                 ));
             }
 
+            var currentSection = null;
             // Show an error when this key has no section when not allowed
             //
-            if (Object.keys(_sections).length < 1 && !_settings.allowKeysWithoutSection)
+            if (Object.keys(_sections).length < 1)
             {
-                _messages.push(_createMessage(
-                    'error',
-                    'Keys without section are not allowed.',
-                    lineNumber,
-                    0,
-                    line.length
-                ));
-                return;
+                if (!_settings.allowKeysWithoutSection)
+                {
+                    _messages.push(_createMessage(
+                        'error',
+                        'Keys without section are not allowed.',
+                        lineNumber,
+                        0,
+                        line.length
+                    ));
+                    return;
+                }
+                currentSection = _global;
             }
-
+            // Get the current section if not _global
+            //
+            if (currentSection === null)
+            {
+                currentSection = _sections[_sectionPointer];
+            }
             // Show an error when key is a duplicate key when not allowed
             //
-            if (_sections[_sectionPointer].includes(key) && !_settings.allowDuplicateKeys)
+            if (currentSection.includes(key) && !_settings.allowDuplicateKeys)
             {
+                var message = 'Property with key \'' + key + '\' already exists in section \'' + _sectionPointer + '\'.\n    Duplicate Keys not allowed, enable in settings to ignore this error.';
+                if (_sectionPointer == null)
+                {
+                    message = 'Property with key \'' + key + '\' already exists globaly.\n    Duplicate Keys not allowed, enable in settings to ignore this error.';
+                }
                 _messages.push(_createMessage(
                     'error',
-                    'Property with key \'' + key + '\' already exists in section \'' + _sectionPointer + '\'.\n    Duplicate Keys not allowed, enable in settings to ignore this error.',
+                    message,
                     lineNumber,
                     0,
                     line.length
                 ));
                 return;
             }
-
-            _sections[_sectionPointer].push(key);
+            
+            // Add the key to the section if successfull
+            currentSection.push(key);
         }
     }
 
