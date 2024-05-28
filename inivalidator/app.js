@@ -39,6 +39,30 @@ document.getElementById('model-settings').addEventListener('show.bs.modal', e =>
     settings.commentRegex = settings.commentRegex.source.match(/\[(.*)\]/)[1];
     document.getElementById('form-settings').setData(settings);
 });
+
+function onValidateConfig(e)
+{
+    // Reset result view
+    //
+    let resultView          = document.getElementById('result');
+    let resultViewSuccess   = document.getElementById('result').getElementsByClassName('result-success')[0];
+    let resultViewMessages  = document.getElementById('error-list');
+    resultView.style.display            = 'none';
+    resultViewSuccess.style.display     = 'none';
+    resultViewMessages.style.display    = 'none';
+    resultViewMessages.innerHTML        = '';
+
+    // Show loader
+    //
+    document.getElementById('btn-validate-text').style.display = 'none';
+    document.getElementById('btn-validate-text-loading').style.display = '';
+
+    setTimeout(() => {
+        // Preform lint
+        editor.performLint();
+    }, 50);
+}
+
 /**
  * 
  * @param {HTMLFormElement} form 
@@ -149,9 +173,21 @@ function Validator()
         let lines = text.replace(/[\t]/, '').split(/[\r\n]/);
         for (let i = 0; i < lines.length; i++)
         {
-            _validateLine(i, lines[i]);
+            try
+            {
+                _validateLine(i, lines[i]);
+            }
+            catch (ex)
+            {
+                console.error(ex, 'When validating line \'' + i + '\'');
+            }
         }
         _renderResult();
+        // Hide loader
+        //
+        document.getElementById('btn-validate-text').style.display = '';
+        document.getElementById('btn-validate-text-loading').style.display = 'none';
+        
         return _messages;
     }
 

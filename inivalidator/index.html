@@ -184,7 +184,15 @@
 key=value</textarea>
         
         <div class="col mb-3">
-            <button class="btn btn-light" onclick="editor.performLint()">Validate Config</button>
+            <button class="btn btn-light" onclick="onValidateConfig()">
+                <span id="btn-validate-text">
+                    Validate Config
+                </span>
+                <span id="btn-validate-text-loading" style="display: none;">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span class="sr-only">Loading...</span>
+                </span>
+            </button>
             <button class="btn btn-light" onclick="editor.setValue('')">Clear</button>
         </div>
 
