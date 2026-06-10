@@ -33,13 +33,6 @@ HTMLFormElement.prototype.setData = function(data)
     });
 }
 
-/** Handle settings model */
-document.getElementById('model-settings').addEventListener('show.bs.modal', e => {
-    let settings = validator.getSettings();
-    settings.commentRegex = settings.commentRegex.source.match(/\[(.*)\]/)[1];
-    document.getElementById('form-settings').setData(settings);
-});
-
 function onValidateConfig(e)
 {
     // Reset result view
@@ -73,11 +66,47 @@ function onSubmitSettings(form)
     data.commentRegex = new RegExp('^\\s*[' + data.commentRegex + '].*');
     validator.setSettings(data);
     validator.saveSettings();
+
+    closeDialog();
     return false; // Prevent default
 }
 
-/** Handle link save model */
-const MODEL_SAVE = new bootstrap.Modal(document.getElementById('model-save-link'));
+/** Dialog helpers */
+function openDialog(dialog) {
+    if (!dialog) return;
+    if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+        return;
+    }
+    dialog.setAttribute('open', '');
+}
+
+function closeDialog(dialog) {
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') {
+        dialog.close();
+        return;
+    }
+    dialog.removeAttribute('open');
+}
+
+document.querySelectorAll('[data-dialog-close]').forEach(button => {
+    button.addEventListener('click', () => closeDialog(document.getElementById(button.getAttribute('data-dialog-close'))));
+});
+
+function openSettingsDialog() {
+    let settings = validator.getSettings();
+    settings.commentRegex = settings.commentRegex.source.match(/\[(.*)\]/)[1];
+    document.getElementById('form-settings').setData(settings);
+    openDialog(document.getElementById('model-settings'));
+}
+
+function loadExampleConfig() {
+    editor.setValue('[example]\nkey=value\n\n[database]\nhost=localhost\nport=3306\n');
+    editor.focus();
+}
+
+/** Handle link save dialog */
 document.addEventListener('keydown', function (e) {
     if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
@@ -85,40 +114,23 @@ document.addEventListener('keydown', function (e) {
         let saveUrl =  new URL(window.location.href);
         saveUrl.hash = encodeURIComponent(editor.getValue());
         document.getElementById('model-save-link-full').value = saveUrl.toString();
-        MODEL_SAVE.show();
+        openDialog(document.getElementById('model-save-link'));
     }
-});
-
-// Enable tooltips
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl)
 });
 
 // Custom data actions
 document.querySelectorAll('[data-action="copy-to-clip"]').forEach(element => {
-
-    // Data target is required
-    //
-    if (!element.hasAttribute('data-target'))
-    {
+    if (!element.hasAttribute('data-target')) {
         return;
     }
 
     element.addEventListener('click', e => {
         let textToCopy = document.querySelector(element.getAttribute('data-target')).value;
-        
-        // Copy the text inside the text field
         navigator.clipboard.writeText(textToCopy);
 
-        if (element.hasAttribute('data-bs-original-title'))
-        {
-            let originalTitle = element.getAttribute('data-bs-original-title');
-
-            element.setAttribute('data-bs-original-title', element.getAttribute('data-success-title'));
-            bootstrap.Tooltip.getInstance(element).show(element.getAttribute('data-success-title'));
-            element.setAttribute('data-bs-original-title', originalTitle);
-        }
+        const originalText = element.textContent;
+        element.textContent = element.getAttribute('data-success-title') || 'Copied';
+        setTimeout(() => element.textContent = originalText, 1200);
     });
 });
 
@@ -509,8 +521,7 @@ function Validator()
     var _renderMessage = function(message)
     {
         errorLine = document.createElement('p');
-        errorLine.className = 'm-2 p-2 ';
-        errorLine.className += message.severity == 'warning' ? 'text-warning result-warning' : 'text-danger result-error'
+        errorLine.className = message.severity == 'warning' ? 'result-warning' : 'result-error'
         errorLine.innerText = message.message
     
         document.getElementById('error-list').appendChild(errorLine);

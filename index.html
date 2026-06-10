@@ -1,44 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#e13434">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#dc2626">
 
-    <link rel="icon" type="image/x-icon" href="favicon.ico"/>
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
-    <link rel='apple-touch-icon' href='apple-touch-icon.png'>
-    <link rel="manifest" href="site.webmanifest">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="canonical" href="https://tools.rlugt.com/">
+  <link rel="stylesheet" href="assets/css/style.css">
 
-    <title>Online Developer tools</title>
-    <meta name="keywords" content="cfg, ini, validator, rlugt, tools, online, web tools">
-    <meta name="description" content="A collection of online tools for developers.">
+  <title>Rlugt Tools - Browser-based tools</title>
+  <meta name="description" content="Practical browser-based tools for validating config files, debugging SIP/Asterisk logs and troubleshooting Linux networking. Simple, fast and privacy-friendly.">
 
-    <meta name="og:type"        content="website">
-    <meta name="og:site_name"   content="Rlugt Tools">
-    <meta name="og:title"       content="Developer Tools">
-    <meta name="og:description" content="A collection of online tools for developers.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Rlugt Tools">
+  <meta property="og:title" content="Rlugt Tools">
+  <meta property="og:description" content="Browser-based tools for config validation, SIP debugging and Linux troubleshooting.">
+  <meta property="og:url" content="https://tools.rlugt.com/">
 
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:domain" content="tools.rlugt.com">
-    <meta name="twitter:title" property="og:title" itemprop="name" content="Rlugt Developer Tools">
-    <meta name="twitter:description" property="og:description" itemprop="description" content="A collection of online tools for developers.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Rlugt Tools">
+  <meta name="twitter:description" content="Practical browser-based tools for config, SIP and Linux debugging.">
 
-    <link rel="canonical" href="https://tools.rlugt.com/validateconfig/">
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
-    <link rel="stylesheet" href="/assets/css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Rlugt Tools",
+    "url": "https://tools.rlugt.com/",
+    "description": "Browser-based tools.",
+    "publisher": {
+      "@type": "Person",
+      "name": "Rick Lugtigheid"
+    }
+  }
+  </script>
 </head>
-<body class="bg-light">
-    <!-- Image and text -->
-    <nav class="navbar navbar-light bg-white p-0">
-        <div class="container">
-            <a class="navbar-brand" href="#">
-                <img src="./assets/images/logo.svg" width="30" height="30" class="d-inline-block align-top" alt="RLugt">
-                Web Tools
-            </a>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <div class="container navbar">
+        <a class="brand" href="/" aria-label="Rlugt Tools home">
+          <span class="brand__mark">R</span>
+          <span class="brand__text">
+            <span>Rlugt Tools</span>
+            <span class="brand__sub">debug toolbox</span>
+          </span>
+        </a>
+        <div class="nav-actions">
+          <nav class="nav-links" aria-label="Main navigation">
+            <a class="nav-link" aria-current="page" href="/">Tools</a>
+            <a class="nav-link" href="/inivalidator/">INI Validator</a>
+          </nav>
+          <button class="button button--secondary button--small theme-toggle" type="button" data-theme-toggle aria-label="Toggle light and dark mode">
+            <span data-theme-icon>☀</span>
+            <span class="theme-toggle__label" data-theme-label>Light</span>
+          </button>
         </div>
     </nav>
 
@@ -60,26 +81,46 @@
                     <h3 class="h6">Other tools</h3><hr>
                 </div>
                 <div class="row" itemprop="item" itemscope itemtype="https://schema.org/SoftwareSourceCode">
-                    <dt class="col-sm-3" itemprop="name"><a itemprop="codeRepository" href="https://marketplace.visualstudio.com/items?itemName=rlugtigheid.sip-protocol-highlight" target="_blank">SIP hightlight</a></dt>
-                    <dd class="col-sm-9" itemprop="description">A vscode extension for helping with SIP protocol debugging.</dd>
+                    <dt class="col-sm-3" itemprop="name"><a itemprop="codeRepository" href="https://github.com/RickLugtigheid/JsMerge" target="_blank">JsMerge</a></dt>
+                    <dd class="col-sm-9" itemprop="description">A tool for merging multiple JavaScript files into one.</dd>
                 </div>
             </dl>
         </div>
-    </div>
-    <!-- Footer -->
-    <footer class="container-fluid bg-light justify-content-between align-items-center mt-auto py-3 fixed-bottom">
-        <div class="row">
-            <div class="col col-md-4 col-lg-6 d-flex align-items-center">
-                <!-- <a href="/" class="mb-3 me-2 mb-md-0 text-muted text-decoration-none lh-1">
-                <img src="/assets/images/logo.svg" class="bi" width="30" height="24"></img>
-                </a> -->
-                <span class="mb-3 mb-md-0 text-muted">© 2023 Rick Lugtigheid</span>
-            </div>
-        
-            <ul class="col nav col-md-4 col-lg-5 justify-content-end list-unstyled d-flex">
-                <li class="ms-3"><a class="text-muted" href="https://github.com/RickLugtigheid" target="_blank"><i class="bi fab fa-github" width="24" height="24"></i></a></li>
-            </ul>
+
+        <div class="grid grid--3" itemscope itemtype="https://schema.org/ItemList">
+          <meta itemprop="numberOfItems" content="3">
+          <a class="card card--link" href="/inivalidator/" itemprop="itemListElement" itemscope itemtype="https://schema.org/WebApplication">
+            <div class="card__meta">Live tool</div>
+            <h3 class="card__title" itemprop="name">INI / CFG Validator</h3>
+            <p class="card__description" itemprop="description">Validate .ini, .cfg and .conf configuration files in your browser.</p>
+            <div class="card__footer">Open validator →</div>
+          </a>
+
+          <article class="card" itemprop="itemListElement" itemscope itemtype="https://schema.org/WebApplication">
+            <div class="card__meta">Planned</div>
+            <h3 class="card__title" itemprop="name">Asterisk PJSIP Log Analyzer</h3>
+            <p class="card__description" itemprop="description">Paste messy Asterisk logs and extract clean SIP messages, Call-IDs and failed responses.</p>
+            <!-- <div class="card__footer">Open Log Analyzer →</div> -->
+          </article>
+
+          <!-- <article class="card" itemprop="itemListElement" itemscope itemtype="https://schema.org/WebApplication">
+            <div class="card__meta">Planned</div>
+            <h3 class="card__title" itemprop="name">SIP Call Flow Visualizer</h3>
+            <p class="card__description" itemprop="description">Turn SIP messages into a readable ladder diagram for fast call debugging.</p>
+            <div class="card__footer">High visual value</div>
+          </article> -->
         </div>
+      </section>
+
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <span>© 2026 Rick Lugtigheid</span>
+        <a href="https://github.com/RickLugtigheid" target="_blank" rel="noopener">GitHub</a>
+      </div>
     </footer>
+  </div>
+  <script src="assets/js/theme.js"></script>
 </body>
 </html>
