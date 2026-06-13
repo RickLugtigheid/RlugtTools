@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#dc2626">
+  <title>SIP Debugging Tool - SIP Log Analyzer & Flow Inspector</title>
+  <meta name="description" content="Free browser-based Asterisk and SIP debugging tool. Analyze raw SIP messages, Asterisk PJSIP logger output, REGISTER, OPTIONS and call flows, including SDP codec negotiation.">
+  <meta name="keywords" content="Asterisk SIP debugging tool, PJSIP log analyzer, SIP call flow analyzer, SDP codec negotiation, Asterisk PJSIP logger, SIP REGISTER analyzer, SIP OPTIONS analyzer, raw SIP parser">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://tools.rlugt.com/sip-log-analyzer/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Rlugt Tools">
+  <meta property="og:title" content="SIP Debugging Tool">
+  <meta property="og:description" content="Analyze Asterisk PJSIP logs and raw SIP traces in your browser. Group by Call-ID, inspect REGISTER, OPTIONS and call flows, and review SDP codecs.">
+  <meta property="og:url" content="https://tools.rlugt.com/sip-log-analyzer/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SIP Debugging Tool">
+  <meta name="twitter:description" content="Free browser-based SIP log analyzer and flow inspector for Asterisk PJSIP logs and raw SIP messages.">
+
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <style>
+    .sip-tool-layout { display: grid; grid-template-columns: minmax(0, .92fr) minmax(420px, 1.08fr); gap: 1rem; align-items: start; }
+    .sip-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: flex-end; }
+    .sip-drop-zone { margin: 1rem; min-height: 88px; display: grid; place-items: center; padding: 1rem; border: 2px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--text-muted); background: var(--surface-inset); text-align: center; cursor: pointer; }
+    .sip-drop-zone strong { display: block; color: var(--text-main); }
+    .sip-drop-zone span { display: block; margin-top: .2rem; font-size: .9rem; }
+    .sip-drop-zone.drag-over { border-color: var(--primary-500); background: var(--primary-50); }
+    :root[data-theme="dark"] .sip-drop-zone.drag-over { background: rgb(127 29 29 / 35%); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sip-drop-zone.drag-over { background: rgb(127 29 29 / 35%); } }
+    #log-input { display: block; width: 100%; min-height: 560px; margin: 0; padding: 1rem; border: 0; border-top: 1px solid var(--border-subtle); resize: vertical; color: var(--text-main); background: var(--surface-card); font-size: .85rem; line-height: 1.55; tab-size: 2; }
+    .sip-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .55fr); gap: .75rem; padding: .85rem; border-bottom: 1px solid var(--border-subtle); background: var(--surface-subtle); }
+    .sip-tabs { display: flex; gap: .4rem; padding: .65rem .65rem 0; border-bottom: 1px solid var(--border-subtle); overflow-x: auto; }
+    .sip-tab { min-height: 38px; border-radius: var(--radius-sm) var(--radius-sm) 0 0; box-shadow: none; color: var(--text-muted); background: transparent; white-space: nowrap; }
+    .sip-tab.active { color: var(--text-main); background: var(--surface-inset); border-color: var(--border-subtle); }
+    .sip-output { min-height: 650px; max-height: 78vh; overflow: auto; padding: 1rem; background: var(--surface-inset); }
+    .empty-state { min-height: 260px; display: grid; place-items: center; text-align: center; color: var(--text-muted); }
+    .empty-state strong { display: block; color: var(--text-main); font-size: 1.1rem; margin-bottom: .35rem; }
+    .notice-grid, .flow-list { display: grid; gap: .65rem; margin-bottom: 14px; }
+    .notice { border: 1px solid var(--border-subtle); border-left-width: 5px; border-radius: var(--radius-md); padding: .85rem 1rem; color: var(--text-muted); background: var(--surface-card); }
+    .notice.ok { border-left-color: var(--green-600); }
+    .notice.warn { border-left-color: var(--amber-600); }
+    .notice.bad { border-left-color: var(--danger-600); }
+    .notice.info { border-left-color: var(--blue-600); }
+    .notice strong { color: var(--text-main); }
+    .flow-card { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+    .flow-card.selected { border-color: var(--primary-300); box-shadow: var(--focus-ring); }
+    .flow-top { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    .flow-title { min-width: 0; }
+    .flow-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-title small, .muted { color: var(--text-muted); }
+    .flow-actions { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }
+    .flow-actions button { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: .45rem .7rem; border: 1px solid var(--border-subtle); border-radius: 999px; cursor: pointer; color: var(--text-main); background: var(--surface-card); box-shadow: var(--shadow-sm); font-weight: 800; }
+    .tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .tag { display: inline-flex; align-items: center; border: 1px solid var(--border-subtle); border-radius: 999px; padding: .25rem .55rem; color: var(--text-muted); background: var(--surface-subtle); font-size: .78rem; font-weight: 800; }
+    .tag.ok { color: var(--green-700); background: var(--green-50); border-color: var(--green-100); }
+    .tag.warn { color: var(--amber-700); background: var(--amber-50); border-color: var(--amber-100); }
+    .tag.bad { color: var(--danger-700); background: var(--danger-50); border-color: var(--danger-100); }
+    .tag.info { color: var(--blue-700); background: var(--blue-50); border-color: var(--blue-100); }
+    :root[data-theme="dark"] .tag.ok { color: var(--green-200); background: rgb(6 78 59 / 45%); border-color: rgb(16 185 129 / 30%); }
+    :root[data-theme="dark"] .tag.warn { color: var(--amber-200); background: rgb(120 53 15 / 45%); border-color: rgb(245 158 11 / 30%); }
+    :root[data-theme="dark"] .tag.bad { color: var(--danger-200); background: rgb(136 19 55 / 45%); border-color: rgb(244 63 94 / 30%); }
+    :root[data-theme="dark"] .tag.info { color: var(--blue-200); background: rgb(30 58 138 / 45%); border-color: rgb(59 130 246 / 30%); }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .tag.ok { color: var(--green-200); background: rgb(6 78 59 / 45%); border-color: rgb(16 185 129 / 30%); }
+      :root:not([data-theme="light"]) .tag.warn { color: var(--amber-200); background: rgb(120 53 15 / 45%); border-color: rgb(245 158 11 / 30%); }
+      :root:not([data-theme="light"]) .tag.bad { color: var(--danger-200); background: rgb(136 19 55 / 45%); border-color: rgb(244 63 94 / 30%); }
+      :root:not([data-theme="light"]) .tag.info { color: var(--blue-200); background: rgb(30 58 138 / 45%); border-color: rgb(59 130 246 / 30%); }
+    }
+    .media-summary { display: grid; gap: .55rem; }
+    .codec-row { display: grid; gap: .35rem; }
+    .codec-row small { color: var(--text-soft); font-weight: 750; }
+    .table-wrap { overflow: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th, td { padding: .7rem; border-bottom: 1px solid var(--border-subtle); text-align: left; vertical-align: top; }
+    th { color: var(--text-muted); background: var(--surface-subtle); font-size: .76rem; text-transform: uppercase; letter-spacing: .04em; }
+    tr:last-child td { border-bottom: 0; }
+    .mono { font-family: var(--font-mono); }
+    .status-ok { color: var(--green-700); }
+    .status-warn { color: var(--amber-700); }
+    .status-bad { color: var(--danger-700); }
+    .raw-block { margin: 0; min-width: max-content; white-space: pre; }
+    .sip-info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    @media (max-width: 1100px) { .sip-tool-layout, .hero, .sip-info-grid { grid-template-columns: 1fr; } .hero-card { order: -1; } .sip-output { min-height: 500px; max-height: none; } }
+    @media (max-width: 760px) { .sip-filter-row, .metric-grid { grid-template-columns: 1fr; } .sip-panel__header, .sip-panel__header--compact, .flow-top { align-items: stretch; flex-direction: column; } .sip-actions, .flow-actions { justify-content: flex-start; } #log-input { min-height: 420px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "SIP Debugging Tool",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "url": "https://tools.rlugt.com/sip-log-analyzer/",
+    "description": "Browser-based SIP log analyzer and flow inspector for raw SIP messages and Asterisk PJSIP logger output.",
+    "featureList": [
+      "Asterisk PJSIP logger parsing",
+      "Raw SIP message parsing",
+      "REGISTER and OPTIONS flow analysis",
+      "Call-ID grouping",
+      "SDP codec negotiation analysis",
+      "Clean SIP trace export",
+      "Drag and drop log file support"
+    ],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+  }
+  </script>
+</head>
+<body>
+  <div class="site-shell">
+
+    <header class="site-header">
+      <div class="container navbar">
+        <a class="brand" href="/" aria-label="Rlugt Tools home">
+          <span class="brand__mark">R</span>
+          <span class="brand__text">
+            <span>Rlugt Tools</span>
+            <span class="brand__sub">debug toolbox</span>
+          </span>
+        </a>
+        <div class="nav-actions">
+          <nav class="nav-links" aria-label="Main navigation">
+            <a class="nav-link" href="/">Tools</a>
+            <a class="nav-link" href="/inivalidator/">INI Validator</a>
+            <a class="nav-link" aria-current="page" href="/sip-log-analyzer/">SIP Analyzer</a>
+          </nav>
+          <button class="button button--secondary button--small theme-toggle" type="button" data-theme-toggle aria-label="Toggle light and dark mode">
+            <span data-theme-icon>☀</span>
+            <span class="theme-toggle__label" data-theme-label>Light</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="container hero" aria-labelledby="page-title">
+        <div>
+          <span class="eyebrow">SIP debugging tool</span>
+          <h1 id="page-title">SIP Log Analyzer & Flow Inspector</h1>
+          <p class="lead">Paste raw SIP messages or messy Asterisk PJSIP logger output. The tool filters non-SIP log lines, detects SIP messages, groups flows by Call-ID, explains REGISTER and OPTIONS traffic, and highlights SDP codec negotiation for calls.</p>
+          <div class="badge-row" aria-label="Highlights">
+            <span class="badge badge--success">Client-side validation</span>
+            <span class="badge badge--blue">Raw SIP</span>
+            <span class="badge">Asterisk PJSIP</span>
+          </div>
+        </div>
+        <aside class="hero-card" aria-label="What this analyzer checks">
+          <div class="hero-card__bar"><span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span></div>
+          <div class="hero-card__body content">
+            <h2>What it checks</h2>
+            <ul>
+              <li>Call flows, authentication challenges, and OPTIONS keepalive/qualify checks.</li>
+              <li>Failed SIP responses, missing responses and repeated transactions.</li>
+              <li>Private SDP addresses, negotiated codecs, user agents, methods, endpoints and clean SIP output.</li>
+            </ul>
+          </div>
+        </aside>
+      </section>
+
+      <section class="container section--compact" id="tool" aria-labelledby="tool-title">
+
+        <noscript><div class="result-error">This tool requires JavaScript. SIP parsing and export features will not work while JavaScript is disabled.</div></noscript>
+
+        <div class="sip-tool-layout">
+          <section class="tool-panel" aria-labelledby="input-title">
+            <div class="tool-panel__header">
+              <div>
+                <h3 class="tool-panel__title" id="input-title">Input</h3>
+                <p>Paste a trace, drop a file, or browse for a log.</p>
+              </div>
+              <div class="sip-actions" aria-label="Input actions">
+                <label class="button button--primary button--small" for="file-input">Browse file</label>
+                <input id="file-input" class="visually-hidden" type="file" accept=".txt,.log,.sip,.pcap.txt,text/plain">
+                <button class="button button--secondary button--small" id="load-example" type="button">Example</button>
+                <button class="button button--ghost button--small" id="clear-input" type="button">Clear</button>
+              </div>
+            </div>
+
+            <div id="drop-zone" class="sip-drop-zone" tabindex="0" role="button" aria-label="Drop a SIP log file here or click to browse">
+              <div>
+                <strong>Drop log file here</strong>
+                <span>or paste directly below.</span>
+              </div>
+            </div>
+
+            <textarea id="log-input" spellcheck="false" aria-label="SIP log input" placeholder="Paste raw SIP or Asterisk PJSIP logger output here..."></textarea>
+          </section>
+
+          <section class="tool-panel" aria-labelledby="results-title">
+            <div class="tool-panel__header tool-panel__header--compact">
+              <div>
+                <h3 class="tool-panel__title" id="results-title">Results</h3>
+                <p id="parse-status">No SIP messages parsed yet.</p>
+              </div>
+              <div class="sip-actions" aria-label="Export actions">
+                <button class="button button--secondary button--small" id="copy-clean" type="button">Copy clean SIP</button>
+                <button class="button button--secondary button--small" id="download-clean" type="button">Export</button>
+              </div>
+            </div>
+
+            <div class="sip-filter-row">
+              <label class="visually-hidden" for="filter-input">Filter parsed SIP messages</label>
+              <input class="input" id="filter-input" type="search" placeholder="Filter by Call-ID, IP, method, status, user agent...">
+              <label class="visually-hidden" for="flow-select">Select flow</label>
+              <select class="input" id="flow-select" aria-label="Select Call-ID flow"></select>
+            </div>
+
+            <div class="sip-tabs" role="tablist" aria-label="Analyzer views">
+              <button class="button button--secondary button--small tab sip-tab active" data-tab="overview" type="button" role="tab" aria-selected="true">Overview</button>
+              <button class="button button--secondary button--small tab sip-tab" data-tab="flows" type="button" role="tab" aria-selected="false">Flows</button>
+              <button class="button button--secondary button--small tab sip-tab" data-tab="messages" type="button" role="tab" aria-selected="false">Messages</button>
+              <button class="button button--secondary button--small tab sip-tab" data-tab="clean" type="button" role="tab" aria-selected="false">Clean SIP</button>
+            </div>
+
+            <div id="output" class="sip-output" aria-live="polite"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="container section">
+        <div class="sip-info-grid">
+          <article class="card">
+            <h3>Built for real Asterisk PJSIP logs</h3>
+            <p>Asterisk logs often wrap SIP messages in timestamp and logger metadata. This tool removes wrappers, keeps the SIP message boundaries, and ignores unrelated log noise instead of failing the whole parse.</p>
+          </article>
+          <article class="card">
+            <h3>REGISTER and OPTIONS aware</h3>
+            <p>REGISTER and OPTIONS traffic is not a normal call, but it is still a SIP flow. The analyzer summarizes authentication challenges, success responses, failed qualify checks and repeated keepalive transactions.</p>
+          </article>
+          <article class="card">
+            <h3>Clean export for other tools</h3>
+            <p>Use the clean SIP view to copy or download only SIP messages, without syslog prefixes or Asterisk log lines. This makes traces easier to paste into SIP syntax highlighters and diagnostic tools.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="container section--compact">
+        <div class="grid grid--2">
+          <article class="content">
+            <span class="eyebrow">How to use it</span>
+            <h2>Analyze a trace</h2>
+            <ol>
+              <li>Paste a raw SIP trace, Asterisk <code>pjsip set logger on</code> output, syslog excerpt or journal output.</li>
+              <li>Use the flow selector to inspect one Call-ID, or keep “All flows” selected for a global overview.</li>
+              <li>Open a flow to inspect transactions, responses, authentication challenges and negotiated codecs.</li>
+              <li>Export clean SIP if you need to share the trace or open it in another diagnostic tool.</li>
+            </ol>
+          </article>
+          <article class="content">
+            <span class="eyebrow">Privacy note</span>
+            <h2>Browser-only parsing</h2>
+            <p>This page is designed as a static, browser-only tool. SIP logs can contain phone numbers, IP addresses, usernames, authentication headers and customer information. Remove sensitive data before sharing exported traces.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <span>© 2026 Rick Lugtigheid</span>
+        <a href="https://github.com/RickLugtigheid/RlugtTools" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="../assets/js/theme.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
