@@ -30,7 +30,9 @@
     :root[data-theme="dark"] .sip-drop-zone.drag-over { background: rgb(127 29 29 / 35%); }
     @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sip-drop-zone.drag-over { background: rgb(127 29 29 / 35%); } }
     #log-input { display: block; width: 100%; min-height: 560px; margin: 0; padding: 1rem; border: 0; border-top: 1px solid var(--border-subtle); resize: vertical; color: var(--text-main); background: var(--surface-card); font-size: .85rem; line-height: 1.55; tab-size: 2; }
-    .sip-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .55fr); gap: .75rem; padding: .85rem; border-bottom: 1px solid var(--border-subtle); background: var(--surface-subtle); }
+    .sip-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .55fr); gap: .65rem .75rem; padding: .85rem; border-bottom: 1px solid var(--border-subtle); background: var(--surface-subtle); }
+    .sip-filter-options { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: .75rem; align-items: center; }
+    .sip-filter-options .button { justify-self: end; }
     .sip-tabs { display: flex; gap: .4rem; padding: .65rem .65rem 0; border-bottom: 1px solid var(--border-subtle); overflow-x: auto; }
     .sip-tab { min-height: 38px; border-radius: var(--radius-sm) var(--radius-sm) 0 0; box-shadow: none; color: var(--text-muted); background: transparent; white-space: nowrap; }
     .sip-tab.active { color: var(--text-main); background: var(--surface-inset); border-color: var(--border-subtle); }
@@ -83,7 +85,7 @@
     .raw-block { margin: 0; min-width: max-content; white-space: pre; }
     .sip-info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
     @media (max-width: 1100px) { .sip-tool-layout, .hero, .sip-info-grid { grid-template-columns: 1fr; } .hero-card { order: -1; } .sip-output { min-height: 500px; max-height: none; } }
-    @media (max-width: 760px) { .sip-filter-row, .metric-grid { grid-template-columns: 1fr; } .sip-panel__header, .sip-panel__header--compact, .flow-top { align-items: stretch; flex-direction: column; } .sip-actions, .flow-actions { justify-content: flex-start; } #log-input { min-height: 420px; } }
+    @media (max-width: 760px) { .sip-filter-row, .sip-filter-options, .metric-grid { grid-template-columns: 1fr; } .sip-filter-options .button { justify-self: start; } .sip-panel__header, .sip-panel__header--compact, .flow-top { align-items: stretch; flex-direction: column; } .sip-actions, .flow-actions { justify-content: flex-start; } #log-input { min-height: 420px; } }
   </style>
   <script type="application/ld+json">
   {
@@ -199,30 +201,29 @@
               </div>
             </div>
 
-            <div class="sip-filter-row">
+            <div class="sip-filter-row" role="search" aria-label="Filter analyzer results">
               <label class="visually-hidden" for="filter-input">Filter parsed SIP messages</label>
-              <input class="input" id="filter-input" type="search" placeholder="Filter by Call-ID, IP, method, status, user agent...">
+              <input class="input" id="filter-input" type="search" placeholder="Search Call-ID, IP, status, user agent…" aria-controls="output">
               <label class="visually-hidden" for="flow-select">Select flow</label>
-              <select class="input" id="flow-select" aria-label="Select Call-ID flow"></select>
-              <div class="flow-filters__field">
-                <select id="flow-status-filter" class="input">
+              <select class="input" id="flow-select" aria-label="Select Call-ID flow" aria-controls="output"></select>
+
+              <div class="sip-filter-options" aria-label="Refine flows">
+                <label class="visually-hidden" for="flow-status-filter">Filter flows by health</label>
+                <select id="flow-status-filter" class="input" aria-controls="output">
                     <option value="all">All statuses</option>
                     <option value="issues">Issues</option>
                     <option value="bad">Errors</option>
                     <option value="warn">Warnings</option>
                     <option value="ok">Healthy</option>
                 </select>
-              </div>
 
-              <div class="flow-filters__field">
-                  <select id="flow-method-filter" class="input">
-                      <option value="all">All methods</option>
-                  </select>
-              </div>
+                <label class="visually-hidden" for="flow-method-filter">Filter flows by SIP method</label>
+                <select id="flow-method-filter" class="input" aria-controls="output">
+                    <option value="all">All methods</option>
+                </select>
 
-              <div></div>
-              
-              <button class="button button--secondary button--small" id="clear-flow-filters" type="button" hidden>Clear filters</button>
+                <button class="button button--ghost button--small" id="clear-flow-filters" type="button" aria-controls="output" hidden>Clear filters</button>
+              </div>
             </div>
 
             <div class="sip-tabs" role="tablist" aria-label="Analyzer views">
