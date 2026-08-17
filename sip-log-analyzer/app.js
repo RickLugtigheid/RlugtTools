@@ -155,7 +155,9 @@ Content-Length: 0`
         flows: [],
         activeTab: 'overview',
         selectedCallId: '__all__',
-        filter: ''
+        filter: '',
+        flowStatusFilter: 'all',
+        flowMethodFilter: 'all'
     };
     const el = {};
     if (typeof document !== 'undefined') {
@@ -176,6 +178,9 @@ Content-Length: 0`
         el.fileInput = document.getElementById('file-input');
         el.copyClean = document.getElementById('copy-clean');
         el.downloadClean = document.getElementById('download-clean');
+        el.flowStatusFilter = document.getElementById('flow-status-filter');
+        el.flowMethodFilter = document.getElementById('flow-method-filter');
+        el.clearFlowFilters = document.getElementById('clear-flow-filters');
     }
     // Wire UI events. Parsing is debounced so large pasted logs do not re-render on every keystroke.
     function bindEvents() {
@@ -227,6 +232,25 @@ Content-Length: 0`
             link.click();
             URL.revokeObjectURL(link.href);
         });
+        el.flowStatusFilter.addEventListener('change', () => {
+            state.flowStatusFilter = el.flowStatusFilter.value;
+            render();
+        });
+        el.flowMethodFilter.addEventListener('change', () => {
+            state.flowMethodFilter = el.flowMethodFilter.value;
+            render();
+        });
+        el.clearFlowFilters.addEventListener('click', () => {
+            state.filter = '';
+            state.flowStatusFilter = 'all';
+            state.flowMethodFilter = 'all';
+
+            el.filter.value = '';
+            el.flowStatusFilter.value = 'all';
+            el.flowMethodFilter.value = 'all';
+
+            render();
+        });
         el.dropZone.addEventListener('click', () => el.fileInput.click());
         el.dropZone.addEventListener('keydown', ev => {
             if (ev.key === 'Enter' || ev.key === ' ') {
@@ -271,7 +295,37 @@ Content-Length: 0`
         state.flows = buildFlows(messages);
         if (state.selectedCallId !== '__all__' && !state.flows.some(flow => flow.callId === state.selectedCallId)) state.selectedCallId = '__all__';
         updateFlowSelect();
+        updateFlowMethodFilter();
         render();
+    }
+    // Update the flow status filter options
+    function updateFlowMethodFilter()
+    {
+        const counts = {};
+
+        state.flows.forEach(flow => {
+            flow.methods.forEach(method => {
+                counts[method] = (counts[method] || 0) + 1;
+            });
+        });
+
+        const currentValue = state.flowMethodFilter;
+
+        el.flowMethodFilter.innerHTML = [
+            '<option value="all">All methods</option>',
+            ...Object.entries(counts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([method, count]) => `
+                    <option value="${escapeAttr(method)}">
+                        ${escapeHtml(method)} (${count})
+                    </option>
+                `)
+        ].join('');
+
+        el.flowMethodFilter.value =
+            counts[currentValue] ? currentValue : 'all';
+
+        state.flowMethodFilter = el.flowMethodFilter.value;
     }
     // Extract SIP messages from raw SIP, Asterisk PJSIP logger output, or mixed logs.
     // Non-SIP lines are ignored instead of causing the full parse to fail.
@@ -1069,12 +1123,49 @@ Content-Length: 0`
     }
 
     function selectedFlows() {
-        const base = state.selectedCallId === '__all__' ? state.flows : state.flows.filter(flow => flow.callId === state.selectedCallId);
-        if (!state.filter) return base;
-        return base.map(flow => ({
-            ...flow,
-            messages: flow.messages.filter(message => searchableText(message).includes(state.filter))
-        })).filter(flow => flow.messages.length || searchableFlow(flow).includes(state.filter));
+        let flows = state.selectedCallId === '__all__'
+            ? state.flows
+            : state.flows.filter(
+                flow => flow.callId === state.selectedCallId
+            );
+
+        if (state.flowStatusFilter === 'issues')
+        {
+            flows = flows.filter(
+                flow =>
+                    flow.status.level === 'warn' ||
+                    flow.status.level === 'bad'
+            );
+        }
+        else if (state.flowStatusFilter !== 'all')
+        {
+            flows = flows.filter(
+                flow =>
+                    flow.status.level === state.flowStatusFilter
+            );
+        }
+
+        if (state.flowMethodFilter !== 'all')
+        {
+            flows = flows.filter(
+                flow =>
+                    flow.methods.includes(state.flowMethodFilter)
+            );
+        }
+
+        if (state.filter)
+        {
+            const search = state.filter.toLowerCase();
+
+            flows = flows.filter(flow =>
+                searchableFlow(flow).includes(search) ||
+                flow.messages.some(
+                    message => searchableText(message).includes(search)
+                )
+            );
+        }
+
+        return flows;
     }
 
     function searchableText(message) {
@@ -1082,7 +1173,22 @@ Content-Length: 0`
     }
 
     function searchableFlow(flow) {
-        return [flow.callId, flow.title, flow.status.label, flow.methods.join(' '), flow.endpoints.join(' '), flow.userAgents.join(' '), renderMediaText(flow.mediaNegotiation?.latest || {}).toLowerCase()].join(' ').toLowerCase();
+        return [
+            flow.callId,
+            flow.title,
+            flow.status.level,
+            flow.status.label,
+            flow.methods.join(' '),
+            flow.statuses.join(' '),
+            flow.endpoints.join(' '),
+            flow.userAgents.join(' '),
+            flow.insights
+                .map(insight => insight.text)
+                .join(' '),
+            renderMediaText(
+                flow.mediaNegotiation?.latest || {}
+            )
+        ].join(' ').toLowerCase();
     }
     // Pick the active view and render it. Views always use filtered/selected messages.
     function render() {
@@ -1467,7 +1573,22 @@ Content-Length: 0`
 
     function renderFlows() {
         const flows = selectedFlows();
-        el.output.innerHTML = `<div class="flow-list">${flows.map(renderFlowCard).join('') || '<div class="empty-state"><div><strong>No matching flows</strong><span>Try clearing the filter.</span></div></div>'}</div>`;
+        const filtersActive =
+            state.filter ||
+            state.flowStatusFilter !== 'all' ||
+            state.flowMethodFilter !== 'all';
+
+        el.clearFlowFilters.hidden = !filtersActive;
+
+        el.output.innerHTML = `
+        ${filtersActive
+            ? `<small class="flow-result-count">
+                ${flows.length} of ${state.flows.length} flows
+            </small>`
+            : ''
+        }
+        
+        <div class="flow-list">${flows.map(renderFlowCard).join('') || '<div class="empty-state"><div><strong>No matching flows</strong><span>Try clearing the filter.</span></div></div>'}</div>`;
         el.output.querySelectorAll('[data-select-flow]').forEach(button => button.addEventListener('click', () => {
             state.selectedCallId = button.dataset.selectFlow;
             el.flowSelect.value = state.selectedCallId;
