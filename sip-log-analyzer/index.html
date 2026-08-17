@@ -204,6 +204,25 @@
               <input class="input" id="filter-input" type="search" placeholder="Filter by Call-ID, IP, method, status, user agent...">
               <label class="visually-hidden" for="flow-select">Select flow</label>
               <select class="input" id="flow-select" aria-label="Select Call-ID flow"></select>
+              <div class="flow-filters__field">
+                <select id="flow-status-filter" class="input">
+                    <option value="all">All statuses</option>
+                    <option value="issues">Issues</option>
+                    <option value="bad">Errors</option>
+                    <option value="warn">Warnings</option>
+                    <option value="ok">Healthy</option>
+                </select>
+              </div>
+
+              <div class="flow-filters__field">
+                  <select id="flow-method-filter" class="input">
+                      <option value="all">All methods</option>
+                  </select>
+              </div>
+
+              <div></div>
+              
+              <button class="button button--secondary button--small" id="clear-flow-filters" type="button" hidden>Clear filters</button>
             </div>
 
             <div class="sip-tabs" role="tablist" aria-label="Analyzer views">
