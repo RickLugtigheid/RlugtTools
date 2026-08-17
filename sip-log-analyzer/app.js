@@ -562,6 +562,7 @@ Content-Length: 0`
         });
         return media;
     }
+
     // Compare offer/answer SDP in call-like flows. The answer side is treated as
     // negotiated/used because SIP answers reduce the offered codec set to what was accepted.
     function analyzeCodecNegotiation(messages) {
@@ -633,7 +634,7 @@ Content-Length: 0`
         const transactions = analyzeTransactions(messages);
         const mediaNegotiation = analyzeCodecNegotiation(messages);
         const title = flowTitle(methods, messages);
-        const status = flowStatus(messages, failures, finalStatuses, authChallenges, successes);
+        const status = flowStatus(messages, transactions, failures, finalStatuses, authChallenges, successes);
         const insights = flowInsights(methods, messages, transactions, authChallenges, successes, failures, sdpPrivate, mediaNegotiation);
         return {
             callId,
@@ -664,13 +665,13 @@ Content-Length: 0`
                 key,
                 cseq: message.cseqNumber,
                 method: message.cseqMethod || message.method,
-                request: null,
+                requests: [],
                 responses: [],
                 messages: []
             });
             const tx = map.get(key);
             tx.messages.push(message);
-            if (message.kind === 'request') tx.request = message;
+            if (message.kind === 'request') tx.requests.push(message);
             if (message.kind === 'response') tx.responses.push(message);
         });
         return [...map.values()].map(tx => ({
@@ -689,20 +690,40 @@ Content-Length: 0`
         return `${methods.slice(0, 3).join(', ')} flow`;
     }
 
-    function flowStatus(messages, failures, finalStatuses, authChallenges, successes) {
+    /**
+     * Determines the overall health status of a SIP flow.
+     *
+     * Returns one concise status representing the most severe relevant condition
+     * found in the flow. The result is intended for badges, filtering, sorting,
+     * and quickly scanning the flow overview.
+     *
+     * Detailed findings, counts, explanations, and diagnostic suggestions belong
+     * in {@link flowInsights}.
+     *
+     * @param {Array<Object>} messages
+     *     All parsed SIP messages belonging to the flow.
+     *
+     * @param {Array<Object>} transactions
+     *     All analyzed SIP transactions belonging to the flow.
+     *
+     * @returns {{
+     *     level: 'ok'|'warn'|'bad',
+     *     label: string
+     * }}
+     *     The dominant health status of the flow.
+     */
+    function flowStatus(messages, transactions, failures, finalStatuses, authChallenges, successes) {
         const methods = new Set(messages.map(m => m.method));
         if (failures.some(code => code >= 500)) return {
             level: 'bad',
             label: 'Server failure'
         };
-        if (methods.has('REGISTER') && successes > 0) return {
-            level: 'ok',
-            label: authChallenges ? 'Registered after challenge' : 'Registered'
-        };
-        if (methods.has('OPTIONS') && successes > 0) return {
-            level: 'ok',
-            label: authChallenges ? 'OPTIONS challenged' : 'OPTIONS OK'
-        };
+        if (methods.has('REGISTER')) {
+            return registerFlowStatus(messages);
+        }
+        if (methods.has('OPTIONS')) {
+            return optionsFlowStatus(transactions);
+        }
         if (failures.length && failures.every(code => code === 401 || code === 407) && authChallenges) return {
             level: 'warn',
             label: 'Auth challenge only'
@@ -721,9 +742,193 @@ Content-Length: 0`
         };
     }
 
+    /**
+     * Determines the overall health status of a REGISTER flow.
+     * 
+     * @param {Array<Object>} messages
+     *     All parsed SIP messages belonging to the REGISTER flow.
+     *
+     * @returns {{
+     *     level: 'ok'|'warn'|'bad',
+     *     label: string
+     * }}
+     */
+    function registerFlowStatus(messages) {
+        const statuses = messages
+            .filter(message => message.status !== null)
+            .map(message => message.status);
+
+        const successful = statuses.some(
+            status => status >= 200 && status < 300
+        );
+
+        const challenged = statuses.some(
+            status => status === 401 || status === 407
+        );
+
+        const failed = statuses.some(
+            status => status >= 400 &&
+                    status !== 401 &&
+                    status !== 407
+        );
+
+        if (failed) {
+            return {
+                level: 'bad',
+                label: 'Registration failed'
+            };
+        }
+
+        if (successful) {
+            return {
+                level: 'ok',
+                label: challenged
+                    ? 'Registered after challenge'
+                    : 'Registered'
+            };
+        }
+
+        return {
+            level: 'warn',
+            label: challenged
+                ? 'Registration challenged'
+                : 'No registration response'
+        };
+    }
+
+    /**
+     * Determines the overall health status of an OPTIONS flow.
+     *
+     * @param {Array<Object>} transactions
+     *     All analyzed transactions in the flow. Only OPTIONS transactions are
+     *     evaluated by this function.
+     *
+     * @returns {{
+     *     level: 'ok'|'warn'|'bad',
+     *     label: string
+     * }}
+     *     A concise OPTIONS health status, such as "OPTIONS OK",
+     *     "OPTIONS delayed", or "OPTIONS timeout".
+     */
+    function optionsFlowStatus(transactions)
+    {
+        const optionTransactions = transactions.filter(
+            transaction => transaction.method === 'OPTIONS'
+        );
+
+        const unanswered = optionTransactions.filter(
+            transaction =>
+                transaction.requests.length > 0 &&
+                transaction.responses.length === 0
+        );
+
+        const failed = optionTransactions.filter(transaction =>
+            transaction.finalResponse !== null &&
+            transaction.finalResponse.status >= 300 &&
+            ![401, 407].includes(transaction.finalResponse.status)
+        );
+
+        const successful = optionTransactions.filter(transaction =>
+            transaction.finalResponse?.status >= 200 &&
+            transaction.finalResponse.status < 300
+        );
+
+        const retransmissionCount = optionTransactions.reduce(
+            (total, transaction) =>
+                total + Math.max(0, transaction.requests.length - 1),
+            0
+        );
+
+        const challenged = optionTransactions.some(transaction =>
+            transaction.responses.some(response =>
+                response.status === 401 || response.status === 407
+            )
+        );
+
+        // Most severe conditions first.
+        //
+        if (unanswered.length > 0) {
+            return {
+                level: 'bad',
+                label: 'OPTIONS timeout'
+            };
+        }
+
+        if (failed.length > 0) {
+            return {
+                level: 'bad',
+                label: 'OPTIONS failed'
+            };
+        }
+
+        if (successful.length === 0) {
+            return {
+                level: 'warn',
+                label: challenged
+                    ? 'OPTIONS challenged'
+                    : 'No successful OPTIONS'
+            };
+        }
+
+        if (retransmissionCount > 0) {
+            return {
+                level: 'warn',
+                label: 'OPTIONS delayed'
+            };
+        }
+
+        return {
+            level: 'ok',
+            label: challenged
+                ? 'OPTIONS authenticated'
+                : 'OPTIONS OK'
+        };
+    }
+
+    /**
+     * Generates detailed diagnostic findings for a SIP flow.
+     *
+     * Unlike {@link flowStatus}, this function may return multiple results.
+     * Insights explain why a flow received its status and report additional
+     * observations that may help diagnose the SIP exchange.
+     *
+     * Insights should use complete, user-readable sentences. They should not be
+     * used as the primary badge or overall flow status.
+     *
+     * @param {Array<string>} methods
+     *     The unique SIP methods found in the flow.
+     *
+     * @param {Array<Object>} messages
+     *     All parsed SIP messages belonging to the flow.
+     *
+     * @param {Array<Object>} transactions
+     *     All analyzed SIP transactions belonging to the flow.
+     *
+     * @param {number} authChallenges
+     *     Number of 401 and 407 authentication responses.
+     *
+     * @param {number} successes
+     *     Number of successful 2xx responses.
+     *
+     * @param {Array<number>} failures
+     *     Failed SIP response status codes found in the flow.
+     *
+     * @param {Array<Object>} sdpPrivate
+     *     Messages containing private SDP connection addresses.
+     *
+     * @param {Object} mediaNegotiation
+     *     Analyzed SDP codec negotiation information.
+     *
+     * @returns {Array<{
+     *     level: 'ok'|'info'|'warn'|'bad',
+     *     text: string
+     * }>}
+     *     Ordered diagnostic findings for the flow.
+     */
     function flowInsights(methods, messages, transactions, authChallenges, successes, failures, sdpPrivate, mediaNegotiation) {
         const insights = [];
         const methodSet = new Set(methods);
+        
         if (methodSet.has('REGISTER')) {
             const registerRequests = messages.filter(m => m.kind === 'request' && m.method === 'REGISTER');
             const expires = registerRequests.map(m => getHeader(m.headers, 'expires')).filter(Boolean).pop();
@@ -744,32 +949,98 @@ Content-Length: 0`
                 text: `Requested registration expiry: ${expires} seconds.`
             });
         }
+
         if (methodSet.has('OPTIONS')) {
-            const ok = messages.some(m => m.method === 'OPTIONS' && m.status >= 200 && m.status < 300);
-            const challenged = messages.some(m => m.method === 'OPTIONS' && (m.status === 401 || m.status === 407));
-            if (ok) insights.push({
-                level: 'ok',
-                text: 'OPTIONS qualify/keepalive received a successful response.'
-            });
-            if (challenged && !ok) insights.push({
-                level: 'warn',
-                text: 'OPTIONS was challenged and no successful retry is visible. Some trunks expect authenticated OPTIONS, others do not.'
-            });
-            if (challenged && ok) insights.push({
-                level: 'info',
-                text: 'OPTIONS authentication challenge detected before a successful response.'
-            });
+            const optionTransactions = transactions.filter(tx => tx.method === 'OPTIONS');
+
+            const successful = optionTransactions.filter(
+                tx => tx.finalResponse?.status >= 200 &&
+                    tx.finalResponse.status < 300
+            );
+
+            const unanswered = optionTransactions.filter(
+                tx => tx.requests.length > 0 &&
+                    tx.responses.length === 0
+            );
+
+            const retransmitted = optionTransactions.filter(
+                tx => tx.requests.length > 1
+            );
+
+            const retransmissionCount = retransmitted.reduce(
+                (total, tx) => total + tx.requests.length - 1,
+                0
+            );
+
+            const challenged = messages.some(
+                m => m.method === 'OPTIONS' &&
+                    (m.status === 401 || m.status === 407)
+            );
+
+            if (successful.length && retransmissionCount === 0) {
+                insights.push({
+                    level: 'ok',
+                    text: 'OPTIONS qualify/keepalive received a successful response without retransmissions.'
+                });
+            }
+
+            if (retransmissionCount > 0) {
+                insights.push({
+                    level: 'warn',
+                    text:
+                        `${retransmitted.length} OPTIONS transaction` +
+                        `${retransmitted.length === 1 ? '' : 's'} required ` +
+                        `${retransmissionCount} retransmission` +
+                        `${retransmissionCount === 1 ? '' : 's'} before receiving a response. ` +
+                        'This may indicate packet loss or delayed responses.'
+                });
+            }
+
+            if (unanswered.length > 0) {
+                insights.push({
+                    level: 'bad',
+                    text:
+                        `${unanswered.length} OPTIONS transaction` +
+                        `${unanswered.length === 1 ? '' : 's'} received no response.`
+                });
+            }
+
+            if (challenged && !successful.length) {
+                insights.push({
+                    level: 'warn',
+                    text: 'OPTIONS was challenged and no successful authenticated retry is visible.'
+                });
+            }
+
+            if (challenged && successful.length) {
+                insights.push({
+                    level: 'info',
+                    text: 'OPTIONS authentication challenge detected before a successful response.'
+                });
+            }
         }
-        const missingResponses = transactions.filter(tx => tx.request && !tx.responses.length);
+
+        // Check if there are any transactions with requests but no responses
+        //
+        const missingResponses = transactions.filter(
+            transaction =>
+                transaction.method !== 'ACK' &&
+                transaction.method !== 'OPTIONS' && // OPTIONS is excluded because it is already handled in the OPTIONS block.
+                transaction.requests.length > 0 &&
+                transaction.responses.length === 0
+        );
         if (missingResponses.length) insights.push({
             level: 'warn',
-            text: `${missingResponses.length} transaction${missingResponses.length === 1 ? '' : 's'} have a request but no response in the parsed trace.`
+            text: `${missingResponses.length} transaction${missingResponses.length === 1 ? '' : 's'} have one (or more) requests but no response in the parsed trace.`
         });
+
+        // Check if there are any responses with a status code that is not 401 or 407
         const realFailures = failures.filter(code => code !== 401 && code !== 407);
         if (realFailures.length) insights.push({
             level: 'bad',
             text: `Detected failed SIP responses: ${[...new Set(realFailures)].join(', ')}.`
         });
+        
         if (sdpPrivate.length) insights.push({
             level: 'warn',
             text: `${sdpPrivate.length} message${sdpPrivate.length === 1 ? '' : 's'} contain private SDP connection IPs. This can be normal on LANs, but is a NAT clue for internet trunks.`
@@ -835,36 +1106,358 @@ Content-Length: 0`
         el.status.textContent = m ? `${m} SIP message${m === 1 ? '' : 's'} parsed in ${f} flow${f === 1 ? '' : 's'}${filtered !== m ? ` (${filtered} visible)` : ''}.` : 'No SIP messages parsed yet.';
     }
 
+    /**
+     * Renders an overview of the currently selected SIP messages and flows.
+     */
     function renderOverview() {
         const messages = selectedMessages();
         const flows = selectedFlows();
-        const requests = messages.filter(m => m.kind === 'request').length;
+
+        /*
+        * General statistics
+        */
+        const requests = messages.filter(
+            message => message.kind === 'request'
+        ).length;
+
         const responses = messages.length - requests;
-        const failures = messages.filter(m => m.status >= 400).length;
-        const authChallenges = messages.filter(m => m.status === 401 || m.status === 407).length;
-        const methods = countBy(messages.map(m => m.method));
-        const statuses = countBy(messages.filter(m => m.status).map(m => String(m.status)));
-        const userAgents = [...new Set(messages.map(m => m.userAgent).filter(Boolean))].slice(0, 8);
-        const sdpPrivate = messages.filter(m => m.sdpConnectionIp && PRIVATE_IP_RE.test(m.sdpConnectionIp));
-        const codecFlows = flows.filter(flow => flow.mediaNegotiation?.latest).length;
+
+        const failures = messages.filter(
+            message => message.status >= 400
+        ).length;
+
+        const authChallenges = messages.filter(
+            message =>
+                message.status === 401 ||
+                message.status === 407
+        ).length;
+
+        const methods = countBy(
+            messages.map(message => message.method)
+        );
+
+        const statuses = countBy(
+            messages
+                .filter(message => message.status)
+                .map(message => String(message.status))
+        );
+
+        const userAgents = [
+            ...new Set(
+                messages
+                    .map(message => message.userAgent)
+                    .filter(Boolean)
+            )
+        ].slice(0, 8);
+
+        /*
+        * Flow health
+        */
+        const badFlows = flows.filter(
+            flow => flow.status.level === 'bad'
+        );
+
+        const warningFlows = flows.filter(
+            flow => flow.status.level === 'warn'
+        );
+
+        /*
+        * Transaction health
+        */
+        const transactions = flows.flatMap(
+            flow => flow.transactions || []
+        );
+
+        /*
+        * Support transactions created before and after the addition of
+        * transaction.requests. The fallback cannot detect retransmissions,
+        * but prevents the overview from failing on older transaction data.
+        */
+        const requestCount = transaction =>
+            transaction.requests?.length ??
+            (transaction.request ? 1 : 0);
+
+        /*
+        * ACK does not receive a SIP response and must therefore not be
+        * classified as an unanswered transaction.
+        */
+        const unansweredTransactions = transactions.filter(
+            transaction =>
+                transaction.method !== 'ACK' &&
+                requestCount(transaction) > 0 &&
+                transaction.responses.length === 0
+        );
+
+        /*
+        * OPTIONS health
+        */
+        const optionTransactions = transactions.filter(
+            transaction => transaction.method === 'OPTIONS'
+        );
+
+        const successfulOptions = optionTransactions.filter(
+            transaction =>
+                transaction.finalResponse?.status >= 200 &&
+                transaction.finalResponse.status < 300
+        );
+
+        const failedOptions = optionTransactions.filter(
+            transaction =>
+                transaction.finalResponse !== null &&
+                transaction.finalResponse.status >= 300 &&
+                ![401, 407].includes(transaction.finalResponse.status)
+        );
+
+        const unansweredOptions = optionTransactions.filter(
+            transaction =>
+                requestCount(transaction) > 0 &&
+                transaction.responses.length === 0
+        );
+
+        const retransmittedOptions = optionTransactions.filter(
+            transaction => requestCount(transaction) > 1
+        );
+
+        const optionRetransmissionCount = retransmittedOptions.reduce(
+            (total, transaction) =>
+                total + requestCount(transaction) - 1,
+            0
+        );
+
+        const maximumOptionRetries = retransmittedOptions.reduce(
+            (maximum, transaction) =>
+                Math.max(
+                    maximum,
+                    requestCount(transaction) - 1
+                ),
+            0
+        );
+
+        /*
+        * Existing SDP and codec analysis
+        */
+        const sdpPrivate = messages.filter(
+            message =>
+                message.sdpConnectionIp &&
+                PRIVATE_IP_RE.test(message.sdpConnectionIp)
+        );
+
+        const codecFlows = flows.filter(
+            flow => flow.mediaNegotiation?.latest
+        ).length;
+
+        /*
+        * Build issue notices separately so the most important findings
+        * appear first.
+        */
+        const issueNotices = [];
+
+        if (badFlows.length > 0 || warningFlows.length > 0) {
+            const parts = [];
+
+            if (badFlows.length > 0) {
+                parts.push(
+                    `${badFlows.length} flow${
+                        badFlows.length === 1 ? '' : 's'
+                    } with errors`
+                );
+            }
+
+            if (warningFlows.length > 0) {
+                parts.push(
+                    `${warningFlows.length} flow${
+                        warningFlows.length === 1 ? '' : 's'
+                    } with warnings`
+                );
+            }
+
+            issueNotices.push(`
+                <div class="notice ${
+                    badFlows.length > 0 ? 'bad' : 'warn'
+                }">
+                    <strong>Potential issues detected.</strong>
+                    ${escapeHtml(parts.join(' and '))}.
+                    Open the flows view for detailed diagnostics.
+                </div>
+            `);
+        }
+        else
+        {
+            issueNotices.push(`
+                <div class="notice ok">
+                    <strong>No flow-level problems detected.</strong>
+                </div>
+            `);
+        }
+
+        if (unansweredTransactions.length > 0) {
+            issueNotices.push(`
+                <div class="notice bad">
+                    <strong>
+                        ${unansweredTransactions.length}
+                        unanswered transaction${
+                            unansweredTransactions.length === 1 ? '' : 's'
+                        }.
+                    </strong>
+                    No response is visible in the parsed trace.
+                </div>
+            `);
+        }
+
+        if (retransmittedOptions.length > 0) {
+            issueNotices.push(`
+                <div class="notice warn">
+                    <strong>OPTIONS responses required retries.</strong>
+                    ${retransmittedOptions.length} of
+                    ${optionTransactions.length} OPTIONS checks required
+                    ${optionRetransmissionCount}
+                    retransmission${
+                        optionRetransmissionCount === 1 ? '' : 's'
+                    }.
+                    The worst check required
+                    ${maximumOptionRetries}
+                    ${maximumOptionRetries === 1 ? 'retry' : 'retries'}.
+                    This may indicate packet loss, delayed responses,
+                    or temporary unavailability.
+                </div>
+            `);
+        } else if (
+            optionTransactions.length > 0 &&
+            successfulOptions.length > 0 &&
+            unansweredOptions.length === 0 &&
+            failedOptions.length === 0
+        ) {
+            issueNotices.push(`
+                <div class="notice ok">
+                    <strong>OPTIONS checks responded normally.</strong>
+                    All ${optionTransactions.length} OPTIONS checks received
+                    a response without retransmissions.
+                </div>
+            `);
+        }
+
+        /*
+        * Preserve the existing failed-response notice.
+        */
+        if (failures > 0) {
+            issueNotices.push(`
+                <div class="notice ${
+                    failures === authChallenges ? 'warn' : 'bad'
+                }">
+                    <strong>
+                        ${failures} 4xx/5xx/6xx response${
+                            failures === 1 ? '' : 's'
+                        }.
+                    </strong>
+                    ${
+                        authChallenges > 0
+                            ? `${authChallenges} ${
+                                authChallenges === 1 ? 'is an' : 'are'
+                            } authentication challenge${
+                                authChallenges === 1 ? '' : 's'
+                            }.`
+                            : 'Open the flows view to inspect them.'
+                    }
+                </div>
+            `);
+        } else {
+            issueNotices.push(`
+                <div class="notice ok">
+                    <strong>
+                        No failed SIP responses in the visible messages.
+                    </strong>
+                </div>
+            `);
+        }
+
+        /*
+        * Preserve the existing private SDP warning.
+        */
+        if (sdpPrivate.length > 0) {
+            issueNotices.push(`
+                <div class="notice warn">
+                    <strong>Private SDP connection IP detected.</strong>
+                    ${sdpPrivate.length} visible message${
+                        sdpPrivate.length === 1 ? '' : 's'
+                    } contain private media addresses.
+                </div>
+            `);
+        }
+
+        /*
+        * Preserve the existing codec information.
+        */
+        if (codecFlows > 0) {
+            issueNotices.push(`
+                <div class="notice info">
+                    <strong>Codec negotiation found.</strong>
+                    ${codecFlows} visible flow${
+                        codecFlows === 1 ? '' : 's'
+                    } include SDP offer/answer media details.
+                </div>
+            `);
+        }
+
         el.output.innerHTML = `
-      <div class="metric-grid">
-        <div class="metric"><strong>${messages.length}</strong><span>SIP messages</span></div>
-        <div class="metric"><strong>${flows.length}</strong><span>Call-ID flows</span></div>
-        <div class="metric"><strong>${requests}</strong><span>Requests</span></div>
-        <div class="metric"><strong>${responses}</strong><span>Responses</span></div>
-      </div>
-      <div class="notice-grid">
-        ${failures ? `<div class="notice ${failures === authChallenges ? 'warn' : 'bad'}"><strong>${failures} 4xx/5xx/6xx response${failures === 1 ? '' : 's'}.</strong> ${authChallenges ? `${authChallenges} are authentication challenges.` : 'Open the flows view to inspect them.'}</div>` : `<div class="notice ok"><strong>No failed SIP responses in the visible messages.</strong></div>`}
-        ${sdpPrivate.length ? `<div class="notice warn"><strong>Private SDP connection IP detected.</strong> ${sdpPrivate.length} visible message${sdpPrivate.length === 1 ? '' : 's'} contain private media addresses.</div>` : ''}
-        ${codecFlows ? `<div class="notice info"><strong>Codec negotiation found.</strong> ${codecFlows} visible flow${codecFlows === 1 ? '' : 's'} include SDP offer/answer media details.</div>` : ''}
-      </div>
-      <div class="grid grid--2">
-        <article class="card"><h3>Methods</h3>${renderCounts(methods)}</article>
-        <article class="card"><h3>Status codes</h3>${renderCounts(statuses) || '<p class="muted">No responses found.</p>'}</article>
-      </div>
-      ${userAgents.length ? `<h3 style="margin-top: 14px;">User agents / servers</h3><div class="tags">${userAgents.map(ua => `<span class="tag">${escapeHtml(ua)}</span>`).join('')}</div>` : ''}
-    `;
+            <div class="metric-grid">
+                <div class="metric">
+                    <strong>${messages.length}</strong>
+                    <span>SIP messages</span>
+                </div>
+
+                <div class="metric">
+                    <strong>${flows.length}</strong>
+                    <span>Call-ID flows</span>
+                </div>
+
+                <div class="metric">
+                    <strong>${requests}</strong>
+                    <span>Requests</span>
+                </div>
+
+                <div class="metric">
+                    <strong>${responses}</strong>
+                    <span>Responses</span>
+                </div>
+            </div>
+
+            <div class="notice-grid">
+                ${issueNotices.join('')}
+            </div>
+
+            <div class="grid grid--2">
+                <article class="card">
+                    <h3>Methods</h3>
+                    ${renderCounts(methods)}
+                </article>
+
+                <article class="card">
+                    <h3>Status codes</h3>
+                    ${
+                        renderCounts(statuses) ||
+                        '<p class="muted">No responses found.</p>'
+                    }
+                </article>
+            </div>
+
+            ${
+                userAgents.length
+                    ? `
+                        <h3 style="margin-top: 14px;">
+                            User agents / servers
+                        </h3>
+
+                        <div class="tags">
+                            ${userAgents.map(userAgent => `
+                                <span class="tag">
+                                    ${escapeHtml(userAgent)}
+                                </span>
+                            `).join('')}
+                        </div>
+                    `
+                    : ''
+            }
+        `;
     }
 
     function renderCounts(counts) {
